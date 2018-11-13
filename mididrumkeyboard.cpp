@@ -14,6 +14,8 @@
 #include <string.h>
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
+#include <X11/Intrinsic.h>
+#include <X11/extensions/XTest.h>
 
 // MIDI device filename
 const char *midiDevice = "/dev/midi1";
@@ -125,33 +127,6 @@ const char *drumNames[] = {"BD", "HH", "HH", "CRASH", "SNARE", "SIDETOM", "RIDE"
 int stop=0;
 
 /**
- * Create a key event using the given parameters
- * @param display Display
- * @param win Window
- * @param root Window
- * @param press true for press; false for release
- * @param keycode int
- * @param state int
- * @return XKeyEvent
- */
-XKeyEvent createKeyEvent(Display *display, Window &win, Window &root, unsigned char press, int keycode, int state) {
-	XKeyEvent e;
-	e.display = display;
-	e.window = win;
-	e.root = root;
-	e.subwindow = None;
-	e.time = CurrentTime;
-	e.x = e.y = 1;
-	e.x_root = e.y_root = 1;
-	e.same_screen = True;
-	e.keycode = XKeysymToKeycode(display, keycode);
-	e.state = state;
-	e.type = press?KeyPress:KeyRelease;
-
-	return e;
-}
-
-/**
  * Handle a signal
  */
 void sighandler(int dum) {
@@ -170,20 +145,10 @@ bool handleSentence(char *s, Display *display, Window &root) {
 	for (int i=0; strlen(map[i].content); i++) {
 		if (strcmp(s, map[i].content)==0) {
 			// We found a match. Send the keystrokes.
-			int revert;
-			Window focus;
-			XGetInputFocus(display, &focus, &revert);
-			XKeyEvent e;
-
-			// Send key down
-			e = createKeyEvent(display, focus, root, 1, map[i].keycode, map[i].modifiers);
-			XSendEvent(e.display, e.window, True, KeyPressMask, (XEvent *) &e);
-
-			// Send key up
-			e = createKeyEvent(display, focus, root, 0, map[i].keycode, map[i].modifiers);
-			XSendEvent(e.display, e.window, True, KeyPressMask, (XEvent *) &e);
-
-			// Flush for message handling.
+			KeyCode modcode = XKeysymToKeycode(display, map[i].keycode);
+			XTestFakeKeyEvent(display, modcode, True, 0);
+			XFlush(display);
+			XTestFakeKeyEvent(display, modcode, False, 0);
 			XFlush(display);
 			return true;
 		}
